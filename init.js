@@ -120,13 +120,28 @@ function applyLight(pInfo, cameraMatrix) {
     gl.uniformMatrix3fv(u.camRot, false, new Float32Array([m[0], m[1], m[2], m[4], m[5], m[6], m[8], m[9], m[10]]));
     gl.uniform3fv(u.fogColor, window.fogColor); gl.uniform1f(u.fogDensity, window.fogDensity);
 }
-// --- TRIAL SYSTEM (SET TO 2 MINUTES FOR TESTING) ---
+// --- TRIAL & CONFIG SYSTEM ---
 (function checkTrial() {
-    const TRIAL_MINUTES = 2; 
+    // FALLBACK: If config.js is missing, default to Public Mode with a 30-minute timer
+    const config = window.KINJU_CONFIG || { IS_DEV_BUILD: false, TRIAL_MINUTES: 30 };
+    
+    if (config.IS_DEV_BUILD) {
+        // --- DEVELOPER MODE ---
+        console.log("Kinju Developer Mode Active. Timer disabled.");
+        document.title = "Kinju (DEV)";
+        window.addEventListener('load', () => {
+            const badge = document.createElement('div');
+            badge.style.cssText = "position:absolute; top:5px; left:50%; transform:translateX(-50%); background:red; color:white; padding:2px 10px; border-radius:10px; font-size:10px; font-family:sans-serif; z-index:9999;";
+            badge.innerText = "DEV BUILD - NO TIMER";
+            document.body.appendChild(badge);
+        });
+        return; // Exit, no timer!
+    }
+
+    // --- PUBLIC (TRIAL) MODE ---
     const trialKey = 'kinju_trial_start';
     let start = localStorage.getItem(trialKey);
     
-    // FOR TESTING: If the URL has "?reset" at the end, wipe the timer
     if (window.location.search.includes('reset')) {
         localStorage.removeItem(trialKey);
         start = null;
@@ -134,24 +149,49 @@ function applyLight(pInfo, cameraMatrix) {
     }
 
     if (!start) {
-        // First time opening
-        localStorage.setItem(trialKey, Date.now().toString());
-    } else {
-        const elapsed = Date.now() - parseInt(start, 10);
-        const limit = TRIAL_MINUTES * 60 * 1000; // 2 minutes in milliseconds
-        
-        if (elapsed > limit) {
-            // Trial expired! Lock the screen.
-            document.body.innerHTML = `
-                <div style="color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #111; text-align: center; padding: 20px;">
-                    <h1 style="color: #ff3333;">Trial Expired</h1>
-                    <p style="color: #aaa;">Your ${TRIAL_MINUTES}-minute trial of Kinju has ended.</p>
-                    <p style="color: #555; font-size: 12px; margin-top: 20px;">Thank you for testing!</p>
-                </div>
-            `;
-            throw new Error("Trial expired"); // Stops the rest of the engine from loading
-        } else {
-            console.log(`Trial active. You have ${Math.round((limit - elapsed)/1000)} seconds left.`);
+        start = Date.now().toString();
+        localStorage.setItem(trialKey, start);
+    }
+
+    const startTime = parseInt(start, 10);
+    const limit = config.TRIAL_MINUTES * 60 * 1000; 
+    const endTime = startTime + limit;
+
+    function lockApp() {
+        document.body.innerHTML = `
+            <div style="color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #111; text-align: center; padding: 20px;">
+                <h1 style="color: #ff3333;">Trial Expired</h1>
+                <p style="color: #aaa;">Your ${config.TRIAL_MINUTES}-minute trial of Kinju has ended.</p>
+                <p style="color: #555; font-size: 12px; margin-top: 20px;">Thank you for testing!</p>
+            </div>
+        `;
+        throw new Error("Trial expired"); 
+    }
+
+    function updateTimer() {
+        const remaining = endTime - Date.now();
+
+        if (remaining <= 0) {
+            lockApp();
+            return;
         }
+
+        // 10-second warning popup
+        if (remaining <= 10000) {
+            let warningEl = document.getElementById('trial-warning');
+            if (!warningEl) {
+                warningEl = document.createElement('div');
+                warningEl.id = 'trial-warning';
+                warningEl.style.cssText = "position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(200, 0, 0, 0.95); color: white; padding: 20px 40px; border-radius: 12px; font-family: sans-serif; font-size: 28px; font-weight: bold; z-index: 99999; text-align: center; box-shadow: 0 0 30px rgba(255, 0, 0, 0.8); pointer-events: none; border: 2px solid #ff5555;";
+                document.body.appendChild(warningEl);
+            }
+            warningEl.innerText = `Trial ends in ${Math.ceil(remaining / 1000)}s`;
+        }
+    }
+
+    if (Date.now() > endTime) {
+        lockApp();
+    } else {
+        setInterval(updateTimer, 1000);
     }
 })();
