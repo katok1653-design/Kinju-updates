@@ -133,9 +133,9 @@ function drawEntity(entity, cameraMatrix, projectionMatrix, opts, parentMatrix) 
     // --- VIEW MODE UNIFORMS ---
     if (pInfo.lit.viewMode) gl.uniform1i(pInfo.lit.viewMode, window.viewMode || 1); 
     if (pInfo.lit.objectType) {
-        let objType = 0; // Default (Cube)
-        if (entity.skinPart) objType = 2; // Skin
-        else if (entity.isModel) objType = 1; // GLB
+        let objType = 0;
+        if (entity.skinPart) objType = 2;
+        else if (entity.isModel) objType = 1;
         gl.uniform1i(pInfo.lit.objectType, objType);
     }
 
@@ -327,6 +327,9 @@ function renderScene() {
 
 function drawScene() {
     try {
+        // --- FIX: Default to View Mode 1 so shadows always render on the first frame ---
+        if (!window.viewMode) window.viewMode = 1; 
+        
         resizeCanvas();
         updateCameraAnim();
         if (typeof flushPaint === 'function') flushPaint();
@@ -355,20 +358,49 @@ function drawScene() {
 //  Export a picture of the current view (same camera) at a fixed size. Grid lines are hidden but shadows stay.
 // ---------------------------------------------------------------------
 const EXPORT_SIZES = { youtube: [2560, 1440], thumbnail: [1280, 720], portrait: [1080, 1920], standard: [1600, 1200] };
+
 function exportView(fmt) {
-    let [W, H] = EXPORT_SIZES[fmt] || EXPORT_SIZES.thumbnail;
-    const maxDim = Math.min(4096, gl.getParameter(gl.MAX_RENDERBUFFER_SIZE) || 4096); if (Math.max(W, H) > maxDim) { const s = maxDim / Math.max(W, H); W = Math.floor(W * s); H = Math.floor(H * s); }
-    if (typeof flushPaint === 'function') flushPaint();
-    const prev = { w: canvas.width, h: canvas.height, fov: window.fovValue };
-    const aS = prev.w / prev.h, aE = W / H, tanOld = Math.tan(prev.fov * Math.PI / 360), tanNew = Math.max(tanOld, tanOld * aS / aE);
-    const pixels = new Uint8Array(W * H * 4);
-    window.fovValue = Math.atan(tanNew) * 360 / Math.PI; canvas.width = W; canvas.height = H; window.exporting = true;
-    try { renderScene(); gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, pixels); } finally { window.exporting = false; window.fovValue = prev.fov; canvas.width = prev.w; canvas.height = prev.h; }
-    const c2 = document.createElement('canvas'); c2.width = W; c2.height = H; const cx = c2.getContext('2d'), img = cx.createImageData(W, H);
-    for (let y = 0; y < H; y++) img.data.set(pixels.subarray((H - 1 - y) * W * 4, (H - y) * W * 4), y * W * 4);
-    for (let i = 3; i < img.data.length; i += 4) img.data[i] = 255;
-    cx.putImageData(img, 0, 0);
-    return { url: c2.toDataURL('image/png'), w: W, h: H };
+    try {
+        if (typeof trace === 'function') trace("Starting export for " + fmt + "...", "success");
+        
+        let [W, H] = EXPORT_SIZES[fmt] || EXPORT_SIZES.thumbnail;
+        const maxDim = Math.min(4096, gl.getParameter(gl.MAX_RENDERBUFFER_SIZE) || 4096); 
+        if (Math.max(W, H) > maxDim) { const s = maxDim / Math.max(W, H); W = Math.floor(W * s); H = Math.floor(H * s); }
+        
+        if (typeof flushPaint === 'function') flushPaint();
+        
+        const prev = { w: canvas.width, h: canvas.height, fov: window.fovValue };
+        const aS = prev.w / prev.h, aE = W / H, tanOld = Math.tan(prev.fov * Math.PI / 360), tanNew = Math.max(tanOld, tanOld * aS / aE);
+        const pixels = new Uint8Array(W * H * 4);
+        
+        window.fovValue = Math.atan(tanNew) * 360 / Math.PI; 
+        canvas.width = W; canvas.height = H; 
+        window.exporting = true;
+        
+        renderScene(); 
+        
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null); 
+        gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, pixels); 
+        
+        window.exporting = false; 
+        window.fovValue = prev.fov; 
+        canvas.width = prev.w; canvas.height = prev.h;
+        
+        const c2 = document.createElement('canvas'); c2.width = W; c2.height = H; 
+        const cx = c2.getContext('2d'), img = cx.createImageData(W, H);
+        
+        for (let y = 0; y < H; y++) img.data.set(pixels.subarray((H - 1 - y) * W * 4, (H - y) * W * 4), y * W * 4);
+        for (let i = 3; i < img.data.length; i += 4) img.data[i] = 255;
+        cx.putImageData(img, 0, 0);
+        
+        if (typeof trace === 'function') trace("Export rendered successfully.", "success");
+        return { url: c2.toDataURL('image/png'), w: W, h: H };
+        
+    } catch(err) {
+        window.exporting = false;
+        if (typeof trace === 'function') trace("CRASH during exportView: " + err.message, "error");
+        throw err;
+    }
 }
 
 window.initRender = function() { requestAnimationFrame(drawScene); };

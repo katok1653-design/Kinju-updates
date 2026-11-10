@@ -109,7 +109,9 @@ function renderCubeMap(i, light, casters) { if (!SH.cubes[i]) SH.cubes[i] = make
 function updateShadows() {
     SH.lights = getGlowLights(); for (let i = 0; i < 4; i++) SH.cubeValid[i] = false; SH.sunValid = false;
     SH.posArr.fill(0); SH.colArr.fill(0); SH.rangeArr.fill(1); SH.lights.forEach((l, i) => { SH.posArr.set(l.pos, i * 3); SH.colArr.set(l.color, i * 3); SH.rangeArr[i] = l.range; });
-    if (!ENV.shadows) return; const casters = getCasters(); const ch = casterHash(casters);
+    if (!ENV.shadows || (window.viewMode && window.viewMode !== 1 && window.viewMode !== 3)) return;
+     const casters = getCasters(); const ch = casterHash(casters);
+     // ...
     if (lightElevation > 0.5) { ensureSunMap(ENV.shadowQuality); const E = ENV.shadowDistance; const dir = v3norm(lightDir), f = [-dir[0], -dir[1], -dir[2]]; const up = Math.abs(dir[1]) > 0.99 ? [0, 0, 1] : [0, 1, 0]; const s = v3norm(v3cross(f, up)), u = v3cross(s, f); const T = window.cameraTarget || [0, 0, 0]; const texel = 2 * E / SH.sunSize; const cs = Math.round(v3dot(T, s) / texel) * texel, cu = Math.round(v3dot(T, u) / texel) * texel, cf = v3dot(T, f); const center = v3add(v3add(v3mul(s, cs), v3mul(u, cu)), v3mul(f, cf)); const eye = v3sub(center, v3mul(f, 2 * E)); const view = faceViewMatrix({ f: f, u: up }, eye), proj = orthoMatrix(-E, E, -E, E, 0.1, 4 * E); SH.sunVP = multiply(proj, view); SH.sunRange = 4 * E - 0.1; const sig = ch + '|' + SH.sunSize + '|' + E + '|' + lightAzimuth + ',' + lightElevation + '|' + cs.toFixed(3) + ',' + cu.toFixed(3); if (sig !== SH.sunSig) { renderSunMap(casters, view, proj); SH.sunSig = sig; } SH.sunValid = true; }
     if (SH.lights.length) { ensureCubes(Math.max(256, Math.min(1024, ENV.shadowQuality / 2))); SH.lights.forEach((l, i) => { const sig = ch + '|' + SH.cubeSize + '|' + l.range + '|' + Math.round(l.pos[0] * 1000) + ',' + Math.round(l.pos[1] * 1000) + ',' + Math.round(l.pos[2] * 1000); if (sig !== SH.cubeSigs[i] || !SH.cubes[i]) { renderCubeMap(i, l, casters); SH.cubeSigs[i] = sig; } SH.cubeValid[i] = true; }); }
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);

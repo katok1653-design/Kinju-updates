@@ -241,3 +241,139 @@ function setModelSize(group, size) {
     }
     group.sizeFactor = size;
 }
+function getProjectJSON() {
+    const saveData = {
+        version: "0.0.7",
+        projectName: window.currentProjectName || "Project 1",
+        environment: { 
+            look: ENV.look, 
+            fogColor: window.fogColor, 
+            fogDensity: window.fogDensity,
+            lightStrength: lightStrength,
+            lightColor: lightColor,
+            lightAzimuth: lightAzimuth,
+            lightElevation: lightElevation,
+            lightAmbient: lightAmbient
+        },
+        skinSettings: JSON.parse(JSON.stringify(window.skinSettings)), // Save bending styles, gap, arm drop
+        skinImageData: window.currentSkinImageData || null,
+        skinPose: [], // NEW: Save the pose of every joint
+        objects: []
+    };
+    
+    sceneObjects.forEach(e => {
+        if (e.isGroup === true) return; 
+        
+        // Save the pose of skin parts
+        if (e.skinPart) {
+            if (e.rigKey) {
+                saveData.skinPose.push({
+                    rigKey: e.rigKey,
+                    rot: { x: e.rot.x, y: e.rot.y, z: e.rot.z },
+                    pos: { x: e.pos.x, y: e.pos.y, z: e.pos.z }
+                });
+            }
+            return; // Don't add to the general objects array
+        }
+
+        let type = 'cube';
+        if (e.isModel) type = 'glb';
+
+        saveData.objects.push({
+            name: e.name,
+            type: type,
+            pos: { x: e.pos.x, y: e.pos.y, z: e.pos.z }, 
+            rot: { x: e.rot.x, y: e.rot.y, z: e.rot.z }, 
+            scale: { x: e.scale.x, y: e.scale.y, z: e.scale.z },
+            material: { type: ensureMaterial(e).type, color: ensureMaterial(e).color }
+        });
+    });
+    return JSON.stringify(saveData);
+}
+function loadProjectData(data) {
+    // 1. Clear current scene
+    sceneObjects.length = 0;
+    setSelection([], null);
+    window.currentProjectName = data.projectName || "Project";
+
+    // 2. Restore Environment & Lights
+    if (data.environment) {
+        applyLook(data.environment.look || 'afternoon');
+        window.fogColor = data.environment.fogColor || [0.8, 0.85, 0.9];
+        window.fogDensity = data.environment.fogDensity || 0;
+        lightStrength = data.environment.lightStrength || 1.5;
+        lightColor = data.environment.lightColor || [1,1,1];
+        lightAzimuth = data.environment.lightAzimuth || 45;
+        lightElevation = data.environment.lightElevation || 55;
+        lightAmbient = data.environment.lightAmbient || 0.3;
+        updateLightDir();
+        if (typeof syncEnvUI === 'function') syncEnvUI();
+    }
+
+    // 3. Restore Skin Settings
+    if (data.skinSettings && window.skinSettings) {
+        Object.assign(window.skinSettings, data.skinSettings);
+        
+        // Update the UI sliders to match the loaded settings
+        const bendSel = document.getElementById('skin-bend'); if(bendSel) bendSel.value = window.skinSettings.bend;
+        const gapSl = document.getElementById('skin-gap'); if(gapSl) gapSl.value = window.skinSettings.gap;
+        const dropSl = document.getElementById('skin-armdrop'); if(dropSl) dropSl.value = window.skinSettings.armDrop;
+        const l2Chk = document.getElementById('skin-layer2'); if(l2Chk) l2Chk.checked = window.skinSettings.layer2;
+        const l2Thick = document.getElementById('skin-l2thick'); if(l2Thick) l2Thick.value = window.skinSettings.layer2Extra;
+    }
+
+    // 4. Restore Skin (If the project had one)
+    if (data.skinImageData) {
+        window.currentSkinImageData = data.skinImageData;
+        const img = new Image();
+        img.onload = function() {
+            const texture = loadTextureFromImage(img); 
+            const skeleton = buildMinecraftSkeleton(window.skinSettings.armDrop === 3 ? 3 : 4); 
+            
+            skeleton.allParts.forEach(p => { 
+                p.texture = texture; 
+                sceneObjects.push(p); 
+                
+                // APPLY SAVED POSE TO THIS PART
+                if (data.skinPose) {
+                    const savedPart = data.skinPose.find(sp => sp.rigKey === p.rigKey);
+                    if (savedPart) {
+                        p.rot = { ...savedPart.rot };
+                        // Only apply position if it's not the root, to preserve the arm drop logic
+                        if (p.rigKey !== 'root') {
+                            p.pos = { ...savedPart.pos }; 
+                        }
+                    }
+                }
+            });
+            
+            if(window.updateTreePanel) window.updateTreePanel();
+        };
+        img.src = data.skinImageData;
+    }
+
+    // 5. Restore Cubes
+    if (data.objects) {
+        data.objects.forEach(obj => {
+            if (obj.type === 'cube') {
+                const newCube = {
+                    name: obj.name || "Cube", 
+                    isTextured: false,
+                    pos: { ...obj.pos }, rot: { ...obj.rot }, scale: { ...obj.scale },
+                    color: obj.material ? [...obj.material.color, 1.0] : [1.0, 0.5, 0.2, 1.0]
+                };
+                
+                const mesh = buildCubeMesh();
+                newCube.posBuffer = mesh.posBuf; 
+                newCube.idxBuffer = mesh.idxBuf; 
+                newCube.triCount = mesh.triCount;
+                newCube.material = obj.material ? makeMaterial(obj.material.type, obj.material.color) : makeMaterial('matte', [1.0, 0.5, 0.2]);
+                
+                sceneObjects.push(newCube);
+            }
+        });
+    }
+    
+    if (window.updateTreePanel) window.updateTreePanel();
+    if (typeof trace === 'function') trace("Project loaded successfully.", "success");
+}

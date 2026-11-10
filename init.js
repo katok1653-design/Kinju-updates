@@ -1,29 +1,45 @@
 // =====================================================================
 //  init.js : global state, the WebGL context, shader programs and the basic scene buffers
 // =====================================================================
+
 let lightStrength = 1.5;
 let lightColor = [1.0, 1.0, 1.0];
 let lightDir = [0.5, 1.0, 0.5];
 let lightAmbient = 0.3;
 let lightAmbientColor = [1.0, 1.0, 1.0];
-let lightAzimuth = 45;     
-let lightElevation = 55;   
+let lightAzimuth = 45;
+let lightElevation = 55;
+
 function updateLightDir() {
     const az = lightAzimuth * Math.PI / 180, el = lightElevation * Math.PI / 180;
-    lightDir = [Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az)]; 
+    lightDir = [Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az)];
 }
 updateLightDir();
+
 let sceneObjects = [];
 window.selectedEntity = null;
 window.selectionGlow = 0;
 
 window.canvas = document.getElementById('glCanvas');
-window.gl = window.canvas.getContext('webgl2', { antialias: true, alpha: false }) || window.canvas.getContext('webgl', { antialias: true });
-if (!gl) { trace("FATAL: WebGL not supported", "error"); } else { trace("WebGL Context Created", "success"); }
+
+// --- CRITICAL FIX: preserveDrawingBuffer is set to true so we can export images ---
+window.gl = window.canvas.getContext('webgl2', { antialias: true, alpha: false, preserveDrawingBuffer: true }) || 
+            window.canvas.getContext('webgl', { antialias: true, preserveDrawingBuffer: true });
+
+if (!gl) { 
+    trace("FATAL: WebGL not supported", "error"); 
+} else { 
+    trace("WebGL Context Created", "success"); 
+}
 
 function loadShader(gl, type, source) {
-    const s = gl.createShader(type); gl.shaderSource(s, source); gl.compileShader(s);
-    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { trace(`SHADER FAILED: ${gl.getShaderInfoLog(s)}`, "error"); return null; }
+    const s = gl.createShader(type); 
+    gl.shaderSource(s, source); 
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { 
+        trace(`SHADER FAILED: ${gl.getShaderInfoLog(s)}`, "error"); 
+        return null; 
+    }
     return s;
 }
 
@@ -31,7 +47,10 @@ function buildProgram(vsSrc, fsList, label, okMsg) {
     for (let i = 0; i < fsList.length; i++) {
         const vs = loadShader(gl, gl.VERTEX_SHADER, vsSrc), fs = loadShader(gl, gl.FRAGMENT_SHADER, fsList[i]);
         if (vs && fs) {
-            const p = gl.createProgram(); gl.attachShader(p, vs); gl.attachShader(p, fs); gl.linkProgram(p);
+            const p = gl.createProgram(); 
+            gl.attachShader(p, vs); 
+            gl.attachShader(p, fs); 
+            gl.linkProgram(p);
             if (gl.getProgramParameter(p, gl.LINK_STATUS)) {
                 if (i > 0) trace(label + ": advanced shader failed, running the basic one (shadows / glow lights off)", "warning");
                 else if (okMsg) trace(okMsg, "success");
@@ -41,7 +60,7 @@ function buildProgram(vsSrc, fsList, label, okMsg) {
         }
         if (i < fsList.length - 1) trace(label + ": advanced shader failed, trying the basic one...", "warning");
     }
-    return gl.createProgram();
+    return gl.createProgram(); 
 }
 
 function getLitUniforms(prog) {
@@ -54,11 +73,14 @@ function getLitUniforms(prog) {
         shadowOn: 'uShadowOn', shadowStrength: 'uShadowStrength', shadowSoft: 'uShadowSoft', shadowBias: 'uShadowBias',
         sunShadowOn: 'uSunShadowOn', sunVP: 'uSunVP', sunRange: 'uSunRange', sunShadow: 'uSunShadow',
         plCount: 'uPLCount', plPos: 'uPLPos', plColor: 'uPLColor', plRange: 'uPLRange', ps0: 'uPS0', ps1: 'uPS1', ps2: 'uPS2', ps3: 'uPS3',
-        viewMode: 'uViewMode', objectType: 'uObjectType' // <--- ADDED THIS
+        viewMode: 'uViewMode', objectType: 'uObjectType'
     };
-    const out = {}; for (const k in names) out[k] = gl.getUniformLocation(prog, names[k]); return out;
+    const out = {}; 
+    for (const k in names) out[k] = gl.getUniformLocation(prog, names[k]); 
+    return out;
 }
 
+// ---- main (solid colour) program ----
 const shaderProgram = buildProgram(vsSource, [fsSource, fsSourceBasic], "Main", "Main Shaders Compiled");
 const programInfo = {
     program: shaderProgram,
@@ -67,17 +89,25 @@ const programInfo = {
     lit: getLitUniforms(shaderProgram)
 };
 
+// ---- floor grid (also receives shadows) ----
 const gridProgram = buildProgram(gridVsSource, [gridFsSource, gridFsSourceBasic], "Grid", "Grid Shader Ready");
 const gridProgramInfo = {
-    program: gridProgram, attribLocations: { position: gl.getAttribLocation(gridProgram, 'aPosition') },
+    program: gridProgram, 
+    attribLocations: { position: gl.getAttribLocation(gridProgram, 'aPosition') },
     uniformLocations: {
-        projectionMatrix: gl.getUniformLocation(gridProgram, 'uProjectionMatrix'), modelViewMatrix: gl.getUniformLocation(gridProgram, 'uModelViewMatrix'),
-        fogColor: gl.getUniformLocation(gridProgram, 'uFogColor'), fogDensity: gl.getUniformLocation(gridProgram, 'uFogDensity'),
-        gridOffset: gl.getUniformLocation(gridProgram, 'uGridOffset'), gridHalf: gl.getUniformLocation(gridProgram, 'uGridHalf'), gridLimit: gl.getUniformLocation(gridProgram, 'uGridLimit'), showLines: gl.getUniformLocation(gridProgram, 'uShowLines')
+        projectionMatrix: gl.getUniformLocation(gridProgram, 'uProjectionMatrix'), 
+        modelViewMatrix: gl.getUniformLocation(gridProgram, 'uModelViewMatrix'),
+        fogColor: gl.getUniformLocation(gridProgram, 'uFogColor'), 
+        fogDensity: gl.getUniformLocation(gridProgram, 'uFogDensity'),
+        gridOffset: gl.getUniformLocation(gridProgram, 'uGridOffset'), 
+        gridHalf: gl.getUniformLocation(gridProgram, 'uGridHalf'), 
+        gridLimit: gl.getUniformLocation(gridProgram, 'uGridLimit'), 
+        showLines: gl.getUniformLocation(gridProgram, 'uShowLines')
     },
     lit: getLitUniforms(gridProgram)
 };
 
+// ---- axis lines ----
 const axisProgram = buildProgram(axisVsSource, [axisFsSource], "Axis", "Axis Shader Ready");
 const axisProgramInfo = {
     program: axisProgram,
@@ -85,14 +115,11 @@ const axisProgramInfo = {
     uniformLocations: { projectionMatrix: gl.getUniformLocation(axisProgram, 'uProjectionMatrix'), modelViewMatrix: gl.getUniformLocation(axisProgram, 'uModelViewMatrix') }
 };
 
-function createSolidColorBuffer(color, vertexCount) {
-    const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-    const colors = new Float32Array(vertexCount * 4);
-    for (let i = 0; i < vertexCount; i++) { colors[i*4+0] = color[0]; colors[i*4+1] = color[1]; colors[i*4+2] = color[2]; colors[i*4+3] = color[3]; }
-    gl.bufferData(gl.ARRAY_BUFFER, colors, gl.STATIC_DRAW); return buf;
-}
+// ---- floor plane: a finely cut mesh ----
+const gridPosBuffer = gl.createBuffer(); 
+const gridIdxBuffer = gl.createBuffer(); 
+let gridTriCount = 0;
 
-const gridPosBuffer = gl.createBuffer(); const gridIdxBuffer = gl.createBuffer(); let gridTriCount = 0;
 (function buildGridPlane() {
     const N = 64; const positions = []; const indices = [];
     for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) {
@@ -103,14 +130,26 @@ const gridPosBuffer = gl.createBuffer(); const gridIdxBuffer = gl.createBuffer()
         const a = j * (N + 1) + i, b = a + 1, c = a + (N + 1), d = c + 1;
         indices.push(a, c, b, b, c, d);
     }
-    gl.bindBuffer(gl.ARRAY_BUFFER, gridPosBuffer); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gridIdxBuffer); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW); gridTriCount = indices.length;
+    gl.bindBuffer(gl.ARRAY_BUFFER, gridPosBuffer); 
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gridIdxBuffer); 
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW); 
+    gridTriCount = indices.length;
 })();
-const axisPosBuffer = gl.createBuffer(); const axisColorBuffer = gl.createBuffer(); let axisVertexCount = 0;
+
+const axisPosBuffer = gl.createBuffer(); 
+const axisColorBuffer = gl.createBuffer(); 
+let axisVertexCount = 0;
+
 (function buildAxisLines() {
-    const length = 3.0; const positions = [0,0.01,0, 0,length,0, 0,0.01,0, length,0.01,0, 0,0.01,0, 0,0.01,length]; const colors = [1,1,0, 1,0,0, 0,1,1, 0,0,1, 0.5,1,0, 0,0.8,0];
-    gl.bindBuffer(gl.ARRAY_BUFFER, axisPosBuffer); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
-    gl.bindBuffer(gl.ARRAY_BUFFER, axisColorBuffer); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW); axisVertexCount = positions.length / 3;
+    const length = 3.0; 
+    const positions = [0,0.01,0, 0,length,0, 0,0.01,0, length,0.01,0, 0,0.01,0, 0,0.01,length]; 
+    const colors = [1,1,0, 1,0,0, 0,1,1, 0,0,1, 0.5,1,0, 0,0.8,0];
+    gl.bindBuffer(gl.ARRAY_BUFFER, axisPosBuffer); 
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, axisColorBuffer); 
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW); 
+    axisVertexCount = positions.length / 3;
 })();
 
 function applyLight(pInfo, cameraMatrix) {
@@ -120,13 +159,14 @@ function applyLight(pInfo, cameraMatrix) {
     gl.uniformMatrix3fv(u.camRot, false, new Float32Array([m[0], m[1], m[2], m[4], m[5], m[6], m[8], m[9], m[10]]));
     gl.uniform3fv(u.fogColor, window.fogColor); gl.uniform1f(u.fogDensity, window.fogDensity);
 }
-// --- TRIAL & CONFIG SYSTEM ---
+
+// =====================================================================
+//  TRIAL & CONFIG SYSTEM
+// =====================================================================
 (function checkTrial() {
-    // FALLBACK: If config.js is missing, default to Public Mode with a 30-minute timer
     const config = window.KINJU_CONFIG || { IS_DEV_BUILD: false, TRIAL_MINUTES: 30 };
     
     if (config.IS_DEV_BUILD) {
-        // --- DEVELOPER MODE ---
         console.log("Kinju Developer Mode Active. Timer disabled.");
         document.title = "Kinju (DEV)";
         window.addEventListener('load', () => {
@@ -138,19 +178,19 @@ function applyLight(pInfo, cameraMatrix) {
         return; // Exit, no timer!
     }
 
-    // --- PUBLIC (TRIAL) MODE ---
+    const store = window.KinjuStorage || { get: function() { return null; }, set: function() {}, remove: function() {} };
     const trialKey = 'kinju_trial_start';
-    let start = localStorage.getItem(trialKey);
+    let start = store.get(trialKey);
     
     if (window.location.search.includes('reset')) {
-        localStorage.removeItem(trialKey);
+        store.remove(trialKey);
         start = null;
         alert("Trial timer reset!");
     }
 
     if (!start) {
         start = Date.now().toString();
-        localStorage.setItem(trialKey, start);
+        store.set(trialKey, start);
     }
 
     const startTime = parseInt(start, 10);
@@ -176,7 +216,6 @@ function applyLight(pInfo, cameraMatrix) {
             return;
         }
 
-        // 10-second warning popup
         if (remaining <= 10000) {
             let warningEl = document.getElementById('trial-warning');
             if (!warningEl) {

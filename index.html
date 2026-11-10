@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <link rel="stylesheet" href="style.css">
+    <style>#armStylePopup.open { display: block !important; }</style>
+</head>
+<body data-mode="modeling">
+
+    <!-- HOME SCREEN -->
+    <div id="home-screen">
+        <div class="home-content">
+            <h1>KINJU</h1>
+            <p>3D Modeling & Animation</p>
+            <div class="home-buttons">
+             <button id="btn-start" class="home-btn primary">Start Project</button>
+             <button id="btn-open" class="home-btn">Open Project</button>
+             <button id="btn-settings" class="home-btn">Settings</button>
+             <button id="btn-about" class="home-btn">About</button>
+           </div>
+        </div>
+    </div>
+
+    <!-- OPEN PROJECT MODAL -->
+    <div id="project-modal">
+        <div class="modal-content">
+            <h2>Open Project</h2>
+            <div id="project-list"></div>
+            <button id="close-project-modal" class="home-btn">Cancel</button>
+        </div>
+    </div>
+<!-- SAVE PROJECT MODAL (CYAN BORDER) -->
+<div id="save-modal">
+    <div class="modal-content save-border">
+        <h2>Save Project</h2>
+        <label style="font-size: 12px; color: #aaa; margin-bottom: 5px; display: block;">Project Name:</label>
+        <input type="text" id="save-project-name" placeholder="Project 1" style="width: 100%; padding: 10px; background: #111; border: 1px solid #555; color: white; border-radius: 4px; margin-bottom: 20px; outline: none;">
+        <div style="display: flex; gap: 10px;">
+            <button id="save-cancel-btn" class="home-btn" style="flex: 1; padding: 10px;">Cancel</button>
+            <button id="save-confirm-btn" class="home-btn" style="flex: 1; padding: 10px; background: #0088ff; border-color: #00ccff;">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- UPDATE NOTICE MODAL (GOLDEN BORDER) -->
+<div id="update-notice-modal">
+    <div class="modal-content update-border">
+        <h2 style="color: #ffcc00;">Update Complete</h2>
+        <p id="update-notice-text" style="margin-bottom: 20px;">Successfully downloaded files.</p>
+        <button id="update-notice-ok" class="home-btn" style="width: 100%; padding: 10px; background: #ffcc00; color: black; border-color: #ffcc00; font-weight: bold;">Reload Now</button>
+    </div>
+</div>
+    <!-- ABOUT MODAL -->
+    <div id="about-modal">
+        <div class="modal-content">
+            <h2>About Kinju</h2>
+            <p><strong>Version:</strong> 0.0.7</p>
+            <p>Built from scratch with raw WebGL2.</p>
+            <button id="btn-email" class="home-btn primary" style="margin-bottom: 10px;">Send Query/Suggestion</button>
+            <button id="close-about-modal" class="home-btn">Close</button>
+        </div>
+    </div>
+
+    <canvas id="glCanvas"></canvas>
+
+    <!-- TOP LEFT BUTTONS -->
+    <button id="undo-btn"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ff8800" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"></path><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path></svg></button>
+    <button id="log-toggle-btn">📜</button>
+    <button id="export-btn" title="Export a picture of the view">📷</button>
+    <div id="export-menu">
+        <h3>Export picture (PNG)</h3>
+        <button data-fmt="youtube">YouTube canvas · 2560 × 1440</button>
+        <button data-fmt="thumbnail">Thumbnail · 1280 × 720</button>
+        <button data-fmt="portrait">Portrait · 1080 × 1920</button>
+        <button data-fmt="standard">4:3 · 1600 × 1200</button>
+        <button id="export-cancel" class="cancel">Cancel</button>
+    </div>
+    <div id="export-preview">
+        <img id="export-img" alt="exported picture">
+        <div id="export-note"></div>
+        <button id="export-close">Close</button>
+    </div>
+    <button id="locate-btn" title="Look at the selected object">🎯</button>
+    <button id="paint-btn" title="Paint on the skin (detail layer)">🖌️</button>
+
+    <!-- TOP RIGHT BUTTONS -->
+    <div id="mode-switch">
+        <button data-mode="space">🌍 Space</button>
+        <button data-mode="modeling" class="active">🤝 Modeling</button>
+        <button data-mode="animation">🎬 Animation</button>
+    </div>
+    
+    <button id="ui-toggle-btn">⚙️</button>
+    <!-- ADDED SAVE BUTTON HERE -->
+    <button id="save-btn" style="display: none;">💾</button>
+    <button id="tree-toggle-btn">🌳</button>
+
+    <!-- SLIDING PANELS -->
+    <div id="ui-panel">
+        <details open data-modes="space">
+            <summary>Environment</summary>
+            <div class="control-row">
+                <label>Look:</label>
+                <select id="env-select">
+                    <option value="morning">Morning</option>
+                    <option value="afternoon" selected>Afternoon</option>
+                    <option value="sunset">Sunset</option>
+                    <option value="dawn">Dawn</option>
+                    <option value="twilight">Twilight</option>
+                    <option value="midnight">Midnight</option>
+                    <option value="bloodmoon">Blood Moon</option>
+                    <option value="space">Space Gray</option>
+                </select>
+            </div>
+            <div class="control-row">
+                <label>Grid size:</label>
+                <select id="grid-size">
+                    <option value="0">Hidden</option>
+                    <option value="20">Small (20)</option>
+                    <option value="50">Medium (50)</option>
+                    <option value="100">Large (100)</option>
+                    <option value="200" selected>Big (200)</option>
+                    <option value="500">Huge (500)</option>
+                    <option value="1000">Giant (1000)</option>
+                    <option value="5000">Vast (5000)</option>
+                    <option value="-1">Infinite</option>
+                </select>
+            </div>
+            <div class="control-row"><label>Auto fog:</label><input type="checkbox" id="env-autofog" checked></div>
+            <div class="control-row"><label>Vibrance:</label><input type="range" id="env-vibrance" min="-1" max="1" step="0.05" value="0"></div>
+            <div class="control-row"><label>Exposure:</label><input type="range" id="env-exposure" min="0.5" max="2.0" step="0.05" value="1.0"></div>
+            <div class="control-row"><label>Contrast:</label><input type="range" id="env-contrast" min="0.5" max="2.0" step="0.05" value="1.0"></div>
+            <div class="control-row"><label>Saturation:</label><input type="range" id="env-saturation" min="0.0" max="2.0" step="0.05" value="1.0"></div>
+            <div class="control-row"><label>Bloom:</label><input type="range" id="env-bloom" min="0.0" max="2.0" step="0.05" value="0.0"></div>
+            <div class="control-row"><label>Bloom threshold:</label><input type="range" id="env-bloom-thr" min="0.0" max="1.0" step="0.05" value="0.8"></div>
+        </details>
+
+        <details data-modes="space">
+            <summary>Shadows</summary>
+            <div class="control-row"><label>Enable shadows:</label><input type="checkbox" id="shadow-enabled" checked></div>
+            <div class="control-row"><label>Strength:</label><input type="range" id="shadow-strength" min="0.0" max="1.0" step="0.05" value="0.7"></div>
+            <div class="control-row"><label>Softness:</label><input type="range" id="shadow-soft" min="0.0" max="1.0" step="0.05" value="0.4"></div>
+            <div class="control-row">
+                <label>Quality:</label>
+                <select id="shadow-quality">
+                    <option value="512">Low (512)</option>
+                    <option value="1024" selected>Medium (1024)</option>
+                    <option value="2048">High (2048)</option>
+                </select>
+            </div>
+            <div class="control-row"><label>Distance:</label><input type="range" id="shadow-distance" min="3" max="100" step="1" value="12"></div>
+            <div class="control-row"><label>Bias:</label><input type="range" id="shadow-bias" min="0.0" max="0.3" step="0.01" value="0.05"></div>
+        </details>
+
+        <details data-modes="space">
+            <summary>Dust</summary>
+            <div class="control-row"><label>Amount:</label><input type="range" id="env-dust" min="0" max="1" step="0.05" value="0"></div>
+            <div class="control-row"><label>Size:</label><input type="range" id="env-dust-size" min="0.3" max="3" step="0.1" value="1"></div>
+            <div class="control-row"><label>Brightness:</label><input type="range" id="env-dust-bright" min="0" max="1" step="0.05" value="0.6"></div>
+        </details>
+
+        <details open data-modes="modeling">
+            <summary>Minecraft Skin</summary>
+            <div class="control-row" style="flex-direction: column; align-items: flex-start;">
+                <input type="file" id="skinFile" accept="image/png" style="margin-top: 5px; font-size: 10px; color: white; width: 100%;">
+            </div>
+            <div class="control-row">
+                <label>Bending:</label>
+                <select id="skin-bend">
+                    <option value="fold" selected>Fold</option>
+                    <option value="spring">Spring</option>
+                    <option value="split">Split</option>
+                </select>
+            </div>
+            <div class="control-row"><label>Split gap:</label><input type="range" id="skin-gap" min="0" max="4" step="0.25" value="1"></div>
+            <div class="control-row"><label>Arm drop:</label><input type="range" id="skin-armdrop" min="0" max="6" step="0.5" value="2"></div>
+            <div class="control-row"><label>Second layer:</label><input type="checkbox" id="skin-layer2" checked></div>
+            <div class="control-row"><label>2nd layer thickness:</label><input type="range" id="skin-l2thick" min="0" max="4" step="0.05" value="0"></div>
+            <div style="margin-top: 10px; color: #00ff00; font-weight: bold;">Detail layer (paint)</div>
+            <div class="control-row"><label>Show:</label><input type="checkbox" id="paint-visible" checked></div>
+            <div class="control-row"><label>Paint mode:</label><input type="checkbox" id="paint-enabled"></div>
+            <div class="control-row">
+                <label>Tool:</label>
+                <select id="paint-tool">
+                    <option value="pen">Pen</option>
+                    <option value="airbrush">Airbrush</option>
+                    <option value="eraser">Eraser</option>
+                </select>
+            </div>
+            <div class="control-row"><label>Size:</label><input type="range" id="paint-size" min="0.05" max="4" step="0.05" value="0.5"></div>
+            <div class="control-row"><label>Opacity:</label><input type="range" id="paint-opacity" min="0.05" max="1" step="0.05" value="1"></div>
+            <div class="control-row"><label>Color:</label><input type="color" id="paint-color" value="#000000"></div>
+            <div class="control-row">
+                <button id="paint-undo" style="background: #333; color: white; border: 1px solid #555; border-radius: 4px; padding: 4px 10px;">Undo stroke</button>
+                <button id="paint-clear" style="background: #333; color: white; border: 1px solid #555; border-radius: 4px; padding: 4px 10px;">Clear</button>
+            </div>
+            <div class="control-row"><button id="skin-reset-pose" style="background: #333; color: white; border: 1px solid #555; border-radius: 4px; padding: 4px 10px;">Reset pose</button></div>
+        </details>
+
+        <details id="material-panel" data-modes="modeling" style="display: none;">
+            <summary>Material</summary>
+            <div class="control-row"><label>Type:</label><select id="mat-type"></select></div>
+            <div class="control-row"><label id="mat-color-label">Color:</label><input type="color" id="model-color" value="#ff8800"></div>
+            <div class="control-row" id="mat-filter-row">
+                <label>Texture:</label>
+                <select id="mat-filter">
+                    <option value="LINEAR">Blend (Smooth)</option>
+                    <option value="NEAREST">Pixel Clean</option>
+                </select>
+            </div>
+            <div class="control-row" id="mat-glow-row"><label>Glow light range:</label><input type="range" id="mat-glow-radius" min="1" max="20" step="1" value="5"></div>
+            <div class="control-row" id="mat-size-row" style="display: none;"><label>Model size:</label><input type="range" id="mat-size" min="0.1" max="5" step="0.01" value="1"><span id="mat-size-val" style="min-width: 38px; text-align: right;">100%</span></div>
+            <div id="mat-params"></div>
+        </details>
+
+        <details data-modes="space">
+            <summary>Light (Sun)</summary>
+            <div class="control-row"><label>Intensity:</label><input type="range" id="light-strength" min="0" max="5" step="0.1" value="1.5"></div>
+            <div class="control-row"><label>Color:</label><input type="color" id="light-color" value="#ffffff"></div>
+            <div class="control-row"><label>Direction:</label><input type="range" id="light-azimuth" min="0" max="360" step="1" value="45"></div>
+            <div class="control-row"><label>Height:</label><input type="range" id="light-elevation" min="-10" max="90" step="1" value="55"></div>
+            <div class="control-row"><label>Ambient:</label><input type="range" id="light-ambient" min="0" max="1" step="0.05" value="0.3"></div>
+            <div class="control-row"><label>Ambient color:</label><input type="color" id="light-ambient-color" value="#ffffff"></div>
+        </details>
+
+        <details data-modes="modeling">
+            <summary>Reflection Settings</summary>
+            <div class="control-row">
+                <label>Quality:</label>
+                <select id="reflection-size">
+                    <option value="64">Low (64px)</option>
+                    <option value="128">Medium (128px)</option>
+                    <option value="256" selected>High (256px)</option>
+                </select>
+            </div>
+            <button id="refresh-reflections" style="width: 100%; margin-top: 8px; padding: 5px; background: #0088ff; color: white; border: none; border-radius: 4px; cursor: pointer;">Force Refresh</button>
+        </details>
+
+        <details data-modes="space">
+            <summary>Fog</summary>
+            <div class="control-row"><label>Fog Color:</label><input type="color" id="fog-color" value="#888888"></div>
+            <div class="control-row"><label>Fog Density:</label><input type="range" id="fog-density" min="0" max="0.2" step="0.002" value="0.008"></div>
+        </details>
+
+        <details open data-modes="animation">
+            <summary>Camera (view)</summary>
+            <div class="control-row"><label>FOV:</label><input type="range" id="fov-slider" min="30" max="100" step="1" value="60"></div>
+        </details>
+
+        <details open data-modes="animation">
+            <summary>Animation</summary>
+            <div style="margin-top: 8px; color: #bbb; line-height: 1.4;">Cameras, the key-frame timeline and video export are coming in the next step.</div>
+        </details>
+    </div>
+
+    <div id="tree-panel">
+        <div class="tree-header"><span>Scene Objects</span><span id="multi-toggle" class="multi-toggle">☐ Multi</span></div>
+        <div id="tree-content"></div>
+    </div>
+
+   <div id="debug-panel">
+    <div class="debug-header">
+        <span>System Log</span>
+        <span id="tri-count" style="color: #ffaa00; font-size: 10px;">Tris: 0</span>
+        <span id="clear-log" style="cursor:pointer;">🗑️</span>
+    </div>
+    
+    <!-- UPDATE SECTION -->
+    <div style="padding: 5px; display: flex; gap: 4px; background: #222; border-bottom: 1px solid #444;">
+        <input type="text" id="update-url" placeholder="https://example.com/update/" style="flex: 1; background: #111; color: #00ff00; border: 1px solid #555; font-size: 10px; padding: 4px;">
+        <button id="update-btn" style="background: #005500; color: white; border: 1px solid #00ff00; font-size: 10px; padding: 4px; border-radius: 4px;">Update</button>
+        <button id="revert-btn" style="background: #550000; color: white; border: 1px solid #ff0000; font-size: 10px; padding: 4px; border-radius: 4px;">Revert</button>
+    </div>
+
+    <div id="log-content"></div>
+    <div id="gpu-health"></div>
+  </div>
+
+   <!-- BOTTOM LEFT CONTROLS -->
+<button id="view-btn" title="Switch View Mode">👁️</button>
+
+<div id="gizmo-controls">
+    <button class="gizmo-btn active" id="gizmo-move">✥</button>
+    <button class="gizmo-btn" id="gizmo-rotate">↻</button>
+    <button class="gizmo-btn" id="gizmo-scale">⤡</button>
+</div>
+
+<button id="add-model-btn">+</button>
+<div id="add-model-menu">
+    <button id="spawn-cube">Spawn Cube</button>
+    <button id="import-glb-btn" style="border-top: 1px solid #333;">Import GLB</button>
+    <input type="file" id="glbUpload" style="position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0;">
+</div>
+
+    <!-- BOTTOM RIGHT CONTROLS -->
+    <div id="gizmo-pad">
+        <div class="pad-handle" data-axis="0"><span class="pad-axis">X</span><span class="pad-glyph"></span></div>
+        <div class="pad-handle" data-axis="1"><span class="pad-axis">Y</span><span class="pad-glyph"></span></div>
+        <div class="pad-handle" data-axis="2"><span class="pad-axis">Z</span><span class="pad-glyph"></span></div>
+    </div>
+
+    <!-- CONTEXT MENU -->
+    <div id="context-menu">
+        <button id="ctx-dup">📄 Duplicate</button>
+        <button id="ctx-del">🗑️ Delete</button>
+        <button id="ctx-reset">🔄 Reset Transform</button>
+    </div>
+
+    <input type="file" id="swapTexture" accept="image/png" style="display:none">
+    <div id="armStylePopup"><h3 style="color: white; margin-top: 0;">Choose Arm Style</h3><button class="format-btn" data-armstyle="4" style="padding: 10px; margin-right: 10px;">Normal (Steve)</button><button class="format-btn" data-armstyle="3" style="padding: 10px;">Slim (Alex)</button><br><br><button id="armStyleCancel" style="width: 100%; padding: 8px; background: #aa0000; color: white; border: none; border-radius: 4px;">Cancel</button></div>
+
+<!-- =====================================================================
+     BOOT LOADER
+     ---------------------------------------------------------------------
+     FIX #1 (root cause): every localStorage access is wrapped in a
+     try/catch. On Android WebView loading file:///android_asset/index.html
+     the origin is opaque, so `localStorage` throws a SecurityError on
+     ACCESS. The old code read localStorage at the top level of this
+     inline script, so the exception killed the whole script before a
+     single <script> tag was appended -> no ui.js -> no click listeners
+     -> the home screen buttons did nothing.
+
+     FIX #2: the loader is wrapped in try/catch and always falls back to
+     loading the plain files, so a storage failure can never stop the app
+     from booting.
+
+     FIX #3: a visible boot-error banner, so a future failure is obvious
+     instead of looking like "dead buttons".
+     ===================================================================== -->
+<script>
+(function () {
+    "use strict";
+
+    // ---- Safe storage: never throws, returns null when unavailable ----
+    var storage = (function () {
+        var mem = {};                 // in-memory fallback
+        var ok = false;
+        try {
+            var probe = "__kinju_probe__";
+            window.localStorage.setItem(probe, "1");
+            window.localStorage.removeItem(probe);
+            ok = true;
+        } catch (e) {
+            ok = false;
+        }
+        return {
+            available: ok,
+            get: function (k) {
+                if (ok) { try { return window.localStorage.getItem(k); } catch (e) { /* fall through */ } }
+                return Object.prototype.hasOwnProperty.call(mem, k) ? mem[k] : null;
+            },
+            set: function (k, v) {
+                if (ok) { try { window.localStorage.setItem(k, v); return; } catch (e) { /* fall through */ } }
+                mem[k] = v;
+            },
+            remove: function (k) {
+                if (ok) { try { window.localStorage.removeItem(k); } catch (e) { /* fall through */ } }
+                delete mem[k];
+            }
+        };
+    })();
+
+    // Expose it so other modules (init.js trial timer, updater) can use it safely.
+    window.KinjuStorage = storage;
+
+    // ---- Boot error banner ----
+    function showBootError(msg) {
+        try {
+            var el = document.getElementById("boot-error");
+            if (!el) {
+                el = document.createElement("div");
+                el.id = "boot-error";
+                el.style.cssText =
+                    "position:fixed;left:0;right:0;bottom:0;z-index:2147483647;" +
+                    "background:#7a0000;color:#fff;font:12px/1.4 monospace;" +
+                    "padding:10px 12px;white-space:pre-wrap;max-height:40vh;overflow:auto;" +
+                    "border-top:2px solid #ff5555;";
+                document.body.appendChild(el);
+            }
+            el.textContent = "Kinju failed to start:\n" + msg;
+        } catch (e) { /* nothing else we can do */ }
+    }
+    window.showBootError = showBootError;
+
+    var originalScripts = [
+    "three.min.js", "GLTFLoader.js", "OBJLoader.js", "config.js", "debug.js", 
+    "shaders.js", "init.js", "engine.js", "skin.js", 
+    "environment.js", "paint.js", "render.js", "glb-loader.js", 
+    "home.js", "view.js", "settings.js", "touch.js", "ui.js" // <--- Added the new files here
+];
+
+    // ---- 1. Load CSS (check for updates first) ----
+    // style.css is already linked in <head>; only add an override if one exists.
+    try {
+        var cssCode = storage.get("update_style.css");
+        if (cssCode) {
+            var blob = new Blob([cssCode], { type: "text/css" });
+            var link = document.createElement("link");
+            link.rel = "stylesheet";
+            link.href = URL.createObjectURL(blob);
+            document.head.appendChild(link);
+        }
+    } catch (e) {
+        // A bad cached stylesheet must never stop the app from booting.
+        console.warn("Kinju: cached stylesheet ignored:", e);
+    }
+
+    // ---- 2. Load scripts sequentially (so they execute in the right order) ----
+    function loadOne(file) {
+        return new Promise(function (resolve) {
+            var script = document.createElement("script");
+            var updatedCode = null;
+            try { updatedCode = storage.get("update_" + file); } catch (e) { updatedCode = null; }
+
+            if (updatedCode) {
+                console.log("Loading updated version of: " + file);
+                try {
+                    script.src = URL.createObjectURL(new Blob([updatedCode], { type: "application/javascript" }));
+                } catch (e) {
+                    script.src = file;   // fall back to the shipped file
+                }
+            } else {
+                script.src = file;
+            }
+
+            script.onload = function () { resolve(true); };
+            script.onerror = function () {
+                console.error("Kinju: failed to load " + file);
+                resolve(false);          // continue with the rest
+            };
+            document.body.appendChild(script);
+        });
+    }
+
+    async function loadScripts() {
+        var failed = [];
+        for (var i = 0; i < originalScripts.length; i++) {
+            var ok = await loadOne(originalScripts[i]);
+            if (!ok) failed.push(originalScripts[i]);
+        }
+        if (failed.length) {
+            showBootError("These files could not be loaded:\n  " + failed.join("\n  "));
+        }
+    }
+
+    // FIX #2: the whole boot is guarded. If anything unexpected throws,
+    // we still try to load the plain files and we surface the error.
+    try {
+        loadScripts().catch(function (e) {
+            showBootError(String(e && e.stack ? e.stack : e));
+        });
+    } catch (e) {
+        showBootError(String(e && e.stack ? e.stack : e));
+    }
+})();
+</script>
+</body>
+</html>
